@@ -7,49 +7,13 @@ import (
 	"net/http"
 	"strconv"
 	"time"
-
+	"www/user"
+	"www/information"
 	"github.com/gin-gonic/gin"
 	mail "github.com/xhit/go-simple-mail/v2"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
-
-type User struct {
-	ID       int
-	Email    string
-	Username string
-	Password string
-}
-
-type Useroi struct {
-	ID       int
-	Email    string
-	Username string
-	Password string
-	Captcha  string
-	Deleteat time.Time
-}
-
-type Information struct {
-	ID          int
-	UserEmail   string
-	Topic       string
-	Type        string
-	Pay         string
-	Times       string
-	Address     string
-	FullAddress string
-	Description string
-}
-
-type Userinfor struct {
-	Useremail string
-	Toid      string
-	Name      string
-	Photo     string
-	Age       string
-	Gender    string
-}
 
 func main() {
 	//gin
@@ -62,28 +26,24 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	db.AutoMigrate(&User{})
-	db.AutoMigrate(&Useroi{})
-	db.AutoMigrate(&Information{})
-	db.AutoMigrate(&Userinfor{})
+	db.AutoMigrate(&user.User{})
+	db.AutoMigrate(&user.Useroi{})
+	db.AutoMigrate(&inform.Information{})
+	db.AutoMigrate(&inform.Userinfor{})
 	//登录
 	r.POST("/login", func(c *gin.Context) {
 		email := c.Query("username")
-		password := c.Query("password")
-		var user User
+		password := c.PostForm("password")
+		var user user.User
 		db.Where("Email = ?", email).First(&user)
 		if db.Error == nil {
 			if user.Password == password {
 				c.String(200, "ok")
+
 			}
 		} else {
 			c.String(200, "fail")
 		}
-
-	})
-
-	r.GET("/", func(c *gin.Context) {
-		c.String(200, "sdsd")
 
 	})
 
@@ -92,12 +52,12 @@ func main() {
 		username := c.PostForm("username")
 		password := c.PostForm("password")
 		emailto := c.PostForm("email")
-		var newuser Useroi
+		var newuser user.Useroi
 		newuser.Email = emailto
 		newuser.Password = password
 		newuser.Username = username
-		var user User
-		result := db.Where("Email = ?", emailto).First(&user)
+		var tuser user.User
+		result := db.Where("Email = ?", emailto).First(&tuser)
 		if result.Error != nil && result.Error == gorm.ErrRecordNotFound {
 			rand.Seed(time.Now().UnixNano())
 			randomInt := rand.Intn(9000) + 1000
@@ -137,18 +97,18 @@ func main() {
 	r.POST("/captcha", func(c *gin.Context) {
 		cap := c.Query("captcha")
 		email := c.Query("email")
-		db.Where("deleteat < ?", time.Now()).Delete(&Useroi{})
-		var user User
-		re := db.Where("email = ?", email).First(&user)
+		db.Where("deleteat < ?", time.Now()).Delete(&user.Useroi{})
+		var tuser user.User
+		re := db.Where("email = ?", email).First(&tuser)
 		if re.Error != nil && re.Error == gorm.ErrRecordNotFound {
-			var useroi Useroi
+			var useroi user.Useroi
 			db.Where("email = ?", email).First(&useroi)
 			if cap == useroi.Captcha {
-				var user User
-				user.Username = useroi.Username
-				user.Password = useroi.Password
-				user.Email = useroi.Email
-				result := db.Create(&user)
+				var usermake user.User
+				usermake.Username = useroi.Username
+				usermake.Password = useroi.Password
+				usermake.Email = useroi.Email
+				result := db.Create(&usermake)
 				if result.Error != nil {
 					c.String(200, "出错了")
 					//log.Fatal(err)
@@ -166,7 +126,7 @@ func main() {
 
 	//创建 兼职信息
 	r.POST("/publish", func(c *gin.Context) {
-		var information Information
+		var information inform.Information
 		information.UserEmail = c.Query("useremail")
 		information.Topic = c.PostForm("topic")
 		information.Type = c.PostForm("type")
@@ -188,7 +148,7 @@ func main() {
 		address := c.Query("address")
 		types := c.Query("type")
 		pay := c.Query("pay")
-		infor := []Information{}
+		infor := []inform.Information{}
 		db.Where("address = ?", address).Where("type = ?", types).Where("pay >= ?", pay).Find(&infor)
 		jsonData, err := json.Marshal(infor)
 		if err != nil {
@@ -200,7 +160,7 @@ func main() {
 
 	//获取兼职详细信息
 	r.GET("/apply", func(c *gin.Context) {
-		var information Information
+		var information inform.Information
 		id := c.Query("id")
 		ID, err := strconv.Atoi(id)
 		if err != nil {
@@ -218,7 +178,7 @@ func main() {
 
 	//进行申请
 	r.POST("/apply", func(c *gin.Context) {
-		var userinfor Userinfor
+		var userinfor inform.Userinfor
 		userinfor.Toid = c.Query("id")
 		userinfor.Useremail = c.Query("useremail")
 		userinfor.Name = c.PostForm("name")
@@ -232,12 +192,6 @@ func main() {
 			c.String(200, "申请成功")
 		}
 	})
-	//获得我的发布
-	//r.GET("/person", func(c *gin.Context) {
-	//	module := c.Query("module")
-	//	useremail := c.Query("useremail")
-	//
-	//})
 
 	r.Run(":8080")
 }
