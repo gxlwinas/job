@@ -13,36 +13,11 @@ import (
 func Register(c *gin.Context) {
 	db := common.GetDB()
 
-	var requestUser model.User
-	c.Bind(&requestUser)
-	username := requestUser.Username
-	password := requestUser.Password
-	email := requestUser.Email
+	username := c.PostForm("username")
+	password := c.PostForm("password")
+	email := c.PostForm("email")
 
-	if len(username) == 0 {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{
-			"code":    422,
-			"message": "用户名不能为空",
-		})
-		return
-	}
-
-	if len(password) < 6 {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{
-			"code":    422,
-			"message": "密码不能少于6位",
-		})
-		return
-	}
-
-	if len(*email) == 0 {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{
-			"code":    422,
-			"message": "请输入邮箱",
-		})
-	}
-
-	if !common.VerifyEmailFormat(*email) {
+	if !common.VerifyEmailFormat(email) {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{
 			"code":    422,
 			"message": "无效的电子邮箱",
@@ -51,14 +26,7 @@ func Register(c *gin.Context) {
 	}
 
 	var user model.User
-	db.Where("username=?", username).First(&user)
-	if user.ID != 0 {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{
-			"code":    422,
-			"message": "用户名已存在",
-		})
-		return
-	}
+
 	db.Where("email=?", email).First(&user)
 	if user.ID != 0 {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{
@@ -87,7 +55,7 @@ func Register(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"code":    200,
-		"message": "注册成功",
+		"message": "请输入验证码",
 	})
 }
 
