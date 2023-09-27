@@ -1,13 +1,13 @@
 package controller
 
 import (
+	"github.com/gin-gonic/gin"
 	"go_pro/common"
 	"go_pro/model"
+	"golang.org/x/crypto/bcrypt"
 	"log"
 	"net/http"
-
-	"github.com/gin-gonic/gin"
-	"golang.org/x/crypto/bcrypt"
+	"time"
 )
 
 func Register(c *gin.Context) {
@@ -27,7 +27,7 @@ func Register(c *gin.Context) {
 
 	var user model.User
 
-	db.Where("email=?", email).First(&user)
+	db.Where("Email=?", email).First(&user)
 	if user.ID != 0 {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{
 			"code":    422,
@@ -45,50 +45,69 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	newUser := model.User{
+	is, captcha := common.Setemail(email)
+
+	if !is {
+		c.JSON(500, gin.H{
+			"code":    500,
+			"message": "发送验证码失败",
+		})
+		return
+	}
+
+	newuser := model.Newuser{
 		Username: username,
 		Password: string(hasedPassword),
 		Email:    email,
+		Captcha:  captcha,
 	}
+	newuser.Deleteat = time.Now().Add(time.Minute * 20)
 
-	db.Create(&newUser)
+	db.Create(&newuser)
 
 	c.JSON(http.StatusOK, gin.H{
-		"code":    200,
-		"message": "请输入验证码",
+		"code":     200,
+		"captacha": captcha,
+		"message":  "请输入验证码",
 	})
+}
+
+func Captcha(c *gin.Context) {
+	db := common.GetDB()
+	db.Where("Deleteat < ?", time.Now()).Delete(&model.Newuser{})
+	email := c.PostForm("email")
+	captcha := c.PostForm("captcha")
+
+	var newuser model.Newuser
+	db.Where("Email = ?", email).First(&newuser)
+	if captcha != newuser.Captcha {
+		c.JSON(422, gin.H{
+			"code":    422,
+			"message": "验证码错误",
+		})
+		return
+	}
+	user := model.User{
+		Username: newuser.Username,
+		Password: newuser.Password,
+		Email:    newuser.Email,
+	}
+
+	db.Create(&user)
 }
 
 func Login(c *gin.Context) {
 	db := common.GetDB()
 
-	var requestUser model.User
-	c.Bind(&requestUser)
-	username := requestUser.Username
-	password := requestUser.Password
-
-	if len(username) == 0 {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{
-			"code":    422,
-			"message": "请输入用户名",
-		})
-		return
-	}
-
-	if len(password) < 6 {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{
-			"code":    422,
-			"message": "密码不能少于6位",
-		})
-		return
-	}
+	email := c.PostForm("email")
+	password := c.PostForm("password")
 
 	var user model.User
-	db.Where("username=?", username).First(&user)
+	db.Where("Email=?", email).First(&user)
 	if user.ID == 0 {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{
 			"code":    422,
-			"message": "用户名不存在",
+			"message": "邮箱不存在",
 		})
 		return
 	}
@@ -102,21 +121,20 @@ func Login(c *gin.Context) {
 
 	token, err := common.ReleaseToken(user)
 	if err != nil {
+		log.Printf("token generate error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"code":    500,
 			"message": "系统异常",
 		})
-		log.Printf("token generate error: %v", err)
+
 		return
 	}
-
+	c.Set("token", token)
 	c.JSON(http.StatusOK, gin.H{
 		"code":    200,
 		"data":    gin.H{"token": token},
 		"message": "登录成功",
 	})
-
-	c.Set("token", token)
 
 }
 
@@ -135,7 +153,7 @@ func JobPublic(c *gin.Context) {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": 422, "error": err.Error})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "兼职已发布到数据库"})
+	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "兼职已发布"})
 }
 
 func JobInfo(c *gin.Context) {

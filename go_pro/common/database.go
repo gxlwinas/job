@@ -19,6 +19,7 @@ func InitDB() *gorm.DB {
 	db.AutoMigrate(&model.PartTimeJob{})
 	db.AutoMigrate(&model.Job{})
 	db.AutoMigrate(&model.JobJson{})
+	db.AutoMigrate(&model.Newuser{})
 
 	DB = db
 

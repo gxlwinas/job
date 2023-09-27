@@ -16,7 +16,7 @@ func VerifyEmailFormat(email string) bool {
 	return reg.MatchString(email)
 }
 
-func setemail(emailto string) bool {
+func Setemail(emailto string) (bool, string) {
 	rand.Seed(time.Now().UnixNano())
 	randomInt := rand.Intn(9000) + 1000
 	str := strconv.Itoa(randomInt)
@@ -38,8 +38,8 @@ func setemail(emailto string) bool {
 	defer server.Close()
 	err = email.Send(server)
 	if err != nil {
-		return false
+		return false, str
 	} else {
-		return true
+		return true, str
 	}
 }
