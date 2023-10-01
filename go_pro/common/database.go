@@ -16,9 +16,9 @@ func InitDB() *gorm.DB {
 		panic("failed to connect database, err: " + err.Error())
 	}
 	db.AutoMigrate(&model.User{})
-	db.AutoMigrate(&model.PartTimeJob{})
+
 	db.AutoMigrate(&model.Job{})
-	db.AutoMigrate(&model.JobJson{})
+	db.AutoMigrate(&model.Joblink{})
 	db.AutoMigrate(&model.Newuser{})
 
 	DB = db

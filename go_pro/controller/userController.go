@@ -7,6 +7,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -81,7 +82,7 @@ func Captcha(c *gin.Context) {
 	var newuser model.Newuser
 	db.Where("Email = ?", email).First(&newuser)
 	if captcha != newuser.Captcha {
-		c.JSON(422, gin.H{
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
 			"code":    422,
 			"message": "验证码错误",
 		})
@@ -93,7 +94,15 @@ func Captcha(c *gin.Context) {
 		Email:    newuser.Email,
 	}
 
-	db.Create(&user)
+	res := db.Create(&user)
+	if res != nil {
+		errorMessage := res.Error.Error()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": errorMessage})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": "success",
+	})
 }
 
 func Login(c *gin.Context) {
@@ -147,7 +156,7 @@ func Info(c *gin.Context) {
 
 func JobPublic(c *gin.Context) {
 	db := common.GetDB()
-	var job model.JobJson
+	var job model.Job
 	c.Bind(&job)
 	if err := db.Create(&job).Error; err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": 422, "error": err.Error})
@@ -156,10 +165,25 @@ func JobPublic(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "兼职已发布"})
 }
 
+func PrinvatePublic(c *gin.Context) {
+	db := common.GetDB()
+	usernemail, _ := c.Params.Get("useremail")
+	var jobList []model.Job
+	if err := db.Where("Useremail = ?", usernemail).Find(&jobList).Error; err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": 422, "error": err.Error})
+		return
+	}
+	c.JSON(http.StatusOK, jobList)
+
+}
+
 func JobInfo(c *gin.Context) {
 	db := common.GetDB()
-	var jobList []model.JobJson
-	if err := db.Find(&jobList).Error; err != nil {
+	var jobList []model.Job
+	address := c.Query("address")
+	wages := c.Query("wages")
+	jobtype := c.Query("jobtype")
+	if err := db.Where("Address = ?", address).Where("Wages >= ?", wages).Where("Jobtype = ?", jobtype).Find(&jobList).Error; err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": 422, "error": err.Error()})
 		return
 	}
@@ -173,8 +197,8 @@ func JobUpdata(c *gin.Context) {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": 422, "message": "未获取到id"})
 		return
 	}
-	var job model.JobJson
-	if err := db.Where("id=?", id).First(&job).Error; err != nil {
+	var job model.Job
+	if err := db.Where("ID=?", id).First(&job).Error; err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": 422, "error": err.Error()})
 		return
 	}
@@ -194,9 +218,39 @@ func JobDelete(c *gin.Context) {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": 422, "message": "未获取到id"})
 		return
 	}
-	if err := db.Where("id=?", id).Delete(model.JobJson{}).Error; err != nil {
+	if err := db.Where("id=?", id).Delete(model.Job{}).Error; err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": 422, "error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "工作已删除"})
+}
+
+func Link(c *gin.Context) {
+	db := common.GetDB()
+	jobid, ok := c.Params.Get("jobid")
+	id, _ := strconv.Atoi(jobid)
+	applyemail := c.PostForm("applicant")
+	joblink := model.Joblink{
+		Jobid:      id,
+		Applyemail: applyemail,
+	}
+	if !ok {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": 422, "message": "未获取到job"})
+		return
+	}
+	db.Create(&joblink)
+	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "申请成功"})
+
+}
+
+func Privatelink(c *gin.Context) {
+	db := common.GetDB()
+	useremail, err := c.Params.Get("useremail")
+	if !err {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": 422, "message": "未获取到账户信息"})
+		return
+	}
+	var joblink []model.Joblink
+	db.Where("Applyemail = ?", useremail).Find(&joblink)
+	c.JSON(http.StatusOK, joblink)
 }
